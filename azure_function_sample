@@ -1,0 +1,106 @@
+import logging
+from azure.storage.blob import BlobServiceClient
+import azure.functions as func
+import json
+import time
+from requests import get, post
+import os
+import requests
+from collections import OrderedDict
+import numpy as np
+import pandas as pd
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer import FormRecognizerClient
+from azure.ai.formrecognizer import FormRecognizerApiVersion
+import os
+from azure.identity import DefaultAzureCredential
+# from azure.ai.formrecognizer import DocumentAnalysisClient
+# from azure.core.credentials import AzureKeyCredential
+import asyncio
+from azure.storage.blob import BlobServiceClient, BlobClient
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer.aio import FormRecognizerClient
+
+def format_bounding_box(bounding_box):
+    if not bounding_box:
+        return "N/A"
+    return ", ".join(["[{}, {}]".format(p.x, p.y) for p in bounding_box])
+
+
+class RecognizeContentSampleAsync(object):
+
+    async def recognize_content(self):
+
+        # This is the connection to the blob storage and form_recognizer credentials
+        container_name = 'original-docs'
+        blob_service_client = BlobServiceClient.from_connection_string("DefaultEndpointsProtocol=https;AccountName=[Storage Account Name];AccountKey=[Storage Account Key];EndpointSuffix=core.windows.net")
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_list = container_client.list_blobs()
+        endpoint = r"https://YOUR_ENDPOINT.cognitiveservices.azure.com/"
+        key = ["YOUR KEY"]
+        post_url = endpoint + "/formrecognizer/v2.1/custom/models/docs-chunking"
+        model_id = ["YOUR MODEL ID"]
+        credential = DefaultAzureCredential()
+
+
+        async with FormRecognizerClient(
+            endpoint=endpoint, credential=AzureKeyCredential(key)
+        ) as form_recognizer_client:
+
+
+            for blob in blob_list:
+
+              blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob)
+              pdf_file = blob_client.download_blob()
+
+              form_recognizer_client=FormRecognizerClient(
+              endpoint=endpoint, credential=AzureKeyCredential(key))
+  
+              poller = await form_recognizer_client.begin_recognize_content(form = pdf_file, content_type="application/pdf")
+              form_pages = await poller.result()
+  
+              for idx, content in enumerate(form_pages):
+                  print("----Recognizing content from page #{}----".format(idx+1))
+                  print("Page has width: {} and height: {}, measured with unit: {}".format(
+                      content.width,
+                      content.height,
+                      content.unit
+                  ))
+                  for table_idx, table in enumerate(content.tables):
+                      print("Table # {} has {} rows and {} columns".format(table_idx, table.row_count, table.column_count))
+                      print("Table # {} location on page: {}".format(table_idx, format_bounding_box(table.bounding_box)))
+                      for cell in table.cells:
+                          print("...Cell[{}][{}] has text '{}' within bounding box '{}'".format(
+                              cell.row_index,
+                              cell.column_index,
+                              cell.text,
+                              format_bounding_box(cell.bounding_box)
+                          ))
+  
+                  for line_idx, line in enumerate(content.lines):
+                      print("Line # {} has word count '{}' and text '{}' within bounding box '{}'".format(
+                          line_idx,
+                          len(line.words),
+                          line.text,
+                          format_bounding_box(line.bounding_box)
+                      ))
+                      if line.appearance:
+                          if line.appearance.style_name == "handwriting" and line.appearance.style_confidence > 0.8:
+                              print("Text line '{}' is handwritten and might be a signature.".format(line.text))
+                      for word in line.words:
+                          print("...Word '{}' has a confidence of {}".format(word.text, word.confidence))
+  
+                  for selection_mark in content.selection_marks:
+                      print("Selection mark is '{}' within bounding box '{}' and has a confidence of {}".format(
+                          selection_mark.state,
+                          format_bounding_box(selection_mark.bounding_box),
+                          selection_mark.confidence
+                      ))
+                  print("----------------------------------------")
+  
+              # [END recognize_content_async]
+
+
+async def main():
+    sample = RecognizeContentSampleAsync()
+    await sample.recognize_content()
