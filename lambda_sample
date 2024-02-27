@@ -1,0 +1,63 @@
+from textractor import Textractor
+import re
+import boto3
+from textractcaller.t_call import call_textract, Textract_Features, Query, QueriesConfig, Adapter, AdaptersConfig
+import trp.trp2 as t2
+import pandas as pd
+import json
+
+textract_client = boto3.client('textract')
+
+def tabulate_query_answers(textract_json):
+    d = t2.TDocumentSchema().load(textract_json)
+    for page in d.pages:
+        query_answers = d.get_query_answers(page=page)
+        display(pd.DataFrame(query_answers))
+
+session = boto3.Session( aws_access_key_id=['ACCESS_KEY'], aws_secret_access_key=['SECRET_ACCESS_KEY'])
+extractor = Textractor(profile_name="default")
+
+
+queries = []
+queries.append(Query(text=["TEXT1"], alias=["TEXT1"], pages=["*"]))
+queries.append(Query(text=["TEXT2"], alias=["TEXT2"], pages=["*"]))
+
+queries_config = QueriesConfig(queries=queries)
+
+s3 = session.resource('s3')
+
+my_bucket = s3.Bucket(['SOURCE_DATA_BUCKET'])
+upload_bucket =['CHUNKED_DATA_BUCKET']
+substring =  "\d"
+adapter_id=['ADAPTER_ID']
+adapter1 = Adapter(adapter_id=adapter_id, version="7", pages=["*"])
+adapters_config = AdaptersConfig(adapters=[adapter1])
+print(f"Calling Custom Queries with Adapter:{adapter_id}")
+
+for obj in my_bucket.objects.all():
+    original_file = 's3://'+ obj.bucket_name+'/'+ obj.key
+    # print (original_file)
+    if re.search(substring,  obj.key):
+
+        adapter1 = Adapter(adapter_id=adapter_id, version="7", pages=["*"])
+        adapters_config = AdaptersConfig(adapters=[adapter1])
+        print(f"Calling Custom Queries with Adapter:{adapter_id}")
+        textract_json_with_adapter = call_textract(input_document=original_file,
+                  boto3_textract_client=textract_client,
+                  features=[Textract_Features.QUERIES],
+                  queries_config=queries_config,
+                  adapters_config=adapters_config)
+        tabulate_query_answers(textract_json_with_adapter)
+        # Extract data from JSON dict and upload to S3
+        Count = 0
+        content = []
+        while Count in range(len(textract_json_with_adapter.get('Blocks'))):
+
+          content_kv = list(textract_json_with_adapter.get('Blocks')[Count].items())
+          content_string = content_kv[2][1]
+          # print ('content',content)
+          Count += 1
+          content.append(content_string)
+
+        download_file = obj.key + '.txt'
+        s3.Object(upload_bucket, download_file).put(Body=str(content))
