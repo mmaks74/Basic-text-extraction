@@ -42,12 +42,12 @@ for obj in my_bucket.objects.all():
         adapter1 = Adapter(adapter_id=adapter_id, version="7", pages=["*"])
         adapters_config = AdaptersConfig(adapters=[adapter1])
         print(f"Calling Custom Queries with Adapter:{adapter_id}")
-        textract_json_with_adapter = call_textract(input_document=original_file,
+        textract__with_adapter = call_textract(input_document=original_file,
                   boto3_textract_client=textract_client,
                   features=[Textract_Features.QUERIES],
                   queries_config=queries_config,
                   adapters_config=adapters_config)
-        tabulate_query_answers(textract_json_with_adapter)
+        tabulate_query_answers(textract__with_adapter)
         # Extract data from JSON dict and upload to S3
         Count = 0
         content = []
