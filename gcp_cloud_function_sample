@@ -10,9 +10,9 @@ import os
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="credentials.json"
 
-import functions_framework
 from google.cloud.documentai_toolbox import document
 from google.cloud.documentai_toolbox import gcs_utilities
+
 @functions_framework.http
 def batch_process_documents(
     request,
