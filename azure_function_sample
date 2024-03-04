@@ -1,25 +1,13 @@
 import logging
-from azure.storage.blob import BlobServiceClient
 import azure.functions as func
-import json
-import time
-from requests import get, post
-import os
 import requests
-from collections import OrderedDict
-import numpy as np
-import pandas as pd
+from requests import get, post
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import FormRecognizerClient
-from azure.ai.formrecognizer import FormRecognizerApiVersion
 import os
 from azure.identity import DefaultAzureCredential
-# from azure.ai.formrecognizer import DocumentAnalysisClient
-# from azure.core.credentials import AzureKeyCredential
 import asyncio
 from azure.storage.blob import BlobServiceClient, BlobClient
-from azure.core.credentials import AzureKeyCredential
-from azure.ai.formrecognizer.aio import FormRecognizerClient
 
 def format_bounding_box(bounding_box):
     if not bounding_box:
@@ -32,7 +20,7 @@ class RecognizeContentSampleAsync(object):
     async def recognize_content(self):
 
         # This is the connection to the blob storage and form_recognizer credentials
-        container_name = 'original-docs'
+        container_name = ['YOUR CONTAINER with original docs']
         blob_service_client = BlobServiceClient.from_connection_string("DefaultEndpointsProtocol=https;AccountName=[Storage Account Name];AccountKey=[Storage Account Key];EndpointSuffix=core.windows.net")
         container_client = blob_service_client.get_container_client(container_name)
         blob_list = container_client.list_blobs()
@@ -51,12 +39,12 @@ class RecognizeContentSampleAsync(object):
             for blob in blob_list:
 
               blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob)
-              pdf_file = blob_client.download_blob()
+              f_file = blob_client.download_blob()
 
               form_recognizer_client=FormRecognizerClient(
               endpoint=endpoint, credential=AzureKeyCredential(key))
   
-              poller = await form_recognizer_client.begin_recognize_content(form = pdf_file, content_type="application/pdf")
+              poller = await form_recognizer_client.begin_recognize_content(form = f_file, content_type="application/f")
               form_pages = await poller.result()
   
               for idx, content in enumerate(form_pages):
